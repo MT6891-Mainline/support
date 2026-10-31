@@ -17,7 +17,8 @@ Redmi Note 10 Pro（MT6891 / "chopin"）主线 Linux 移植后，**系统跑起�
 | `rootfs/etc/udev/rules.d/` | 插拔时重新应用充电限流 |
 | `rootfs/etc/xdg/autostart/` | 挂起抑制锁 |
 | `rootfs/etc/systemd/logind.conf.d/` | logind 不因空闲挂起 |
-| `rootfs/etc/dconf/db/local.d/` | GNOME 系统默认（熄屏 60s、禁用锁屏等） |
+| `rootfs/usr/local/bin/chopin-powerkey` | 电源键 → 切换背光（熄屏/亮屏） |
+| `rootfs/etc/dconf/db/local.d/` | GNOME 系统默认（熄屏 60s、电源键 no-op、不锁屏） |
 | `rootfs/etc/chopin-gpu-freq` | GPU 频率（`810000000`） |
 | `kernel/chopin_defconfig` | 完整内核 defconfig |
 | `kernel/config-7.3-chopin` | 当前 boot 镜像实际使用的 `.config` |
@@ -45,11 +46,37 @@ sudo ./install.sh
 | `chopin-charge-tune.sh` + `.service` + udev | MT6360 默认只给 500 mA；识别 PD/DCP/SDP 后按档设置，PD 下可达 3.75 A |
 | `chopin-no-suspend.desktop` + logind conf | 挂起在此平台不可行（见 `docs/SUSPEND-ANALYSIS.md`），用抑制锁挡住 |
 | `gdm-wait-for-dsi.conf` | 等 DSI 连接后再启动 gdm，否则"No GPUs found" |
-| `dconf/00-chopin` | GNOME 系统默认：60 秒熄屏、不锁屏、无 suspend 菜单项 |
+| `dconf/00-chopin` | GNOME 系统默认：60 秒熄屏、不锁屏、电源键交给 chopin-powerkey |
+| `chopin-powerkey` | 读 `/dev/input/event0` 的 KEY_POWER，切换背光 |
 | `chopin-growfs.service` | 首次启动自动扩展根文件系统 |
 | `mali_csffw.bin` | panfrost 必需，否则 GPU 无法初始化 |
 | `dtb/stock-base.dtb` | 没有它打不出可启动的镜像（`build-images.sh STOCK_DTB=` 需要） |
 | `mediatek/WIFI_*` | MT7961 WiFi 固件（Debian 包 `firmware-misc-nonfree` 也提供同样的文件） |
+
+## 电源键与熄屏
+
+挂起在这个板子上不可用（见 `chopin-docs/power/SUSPEND-ANALYSIS.md` §23），
+所以电源键不做挂起，而是**切换背光**：
+
+```
+电源键 → chopin-powerkey → /sys/class/backlight/lm36273/brightness
+```
+
+* 按一下：保存当前亮度 → 背光设为 0（屏幕黑）
+* 再按一下：恢复保存的亮度（瞬时唤醒）
+
+**为什么是背光而不是 DRM 熄屏**：背光切换完全不动 DSI / 面板状态机，零花屏风险；
+DRM 熄屏路径正是所有挂起尝试最终把画面搞花的地方。真正的 DPMS 熄屏仍由
+60 秒空闲触发（那条路径已验证稳定）。
+
+配套设置（都在 `install.sh` 里）：
+
+| 设置 | 值 | 原因 |
+| --- | --- | --- |
+| `power-button-action` | `'nothing'` | 否则 gsd 会尝试挂起，被拦后弹关机对话框 |
+| `HandlePowerKey` (logind) | `ignore` | 电源键只由 chopin-powerkey 处理 |
+| `idle-delay` | 60 s | 自动熄屏 |
+| swapfile | 4 GB | 防 gnome-shell 偶发膨胀触发 OOM |
 
 ## 不在本仓库里的东西
 

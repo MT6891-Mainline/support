@@ -1,24 +1,23 @@
-# chopin: keep the screen on and never suspend.
+# chopin: GNOME system defaults.
 #
-# A blank/unblank (or a real suspend) resets the v2 DRM fence session state
-# and, on the pre-v126 kernel, every following commit failed with
-# "layer_info is null" and the panel showed garbled stripes.  v126 recycles
-# the fence slots so it should survive now, but there is no reason for a
-# charging phone to blank itself in the first place.
+# idling: blanking has been safe since the DSI underrun recovery learned to retry
+# until the panel is really back (v143), and it is where the idle power saving
+# comes from - there is no working suspend on this board, so the screen is the
+# only thing that can be turned off.
 [org/gnome/desktop/session]
-# 60 s: blanking is safe since v143 (the DSI underrun recovery retries until the
-# panel is re-enabled and then re-initialises it).  This is where the idle power
-# saving comes from - there is no working suspend on this board.
 idle-delay=uint32 60
 
-[org/gnome/settings-daemon/plugins/power]
-sleep-inactive-ac-type='nothing'
-sleep-inactive-battery-type='nothing'
-
+# never lock: the panel comes back from a blank without a lock screen so a touch
+# is enough to wake it.
 [org/gnome/desktop/screensaver]
 lock-enabled=false
 
 [org/gnome/settings-daemon/plugins/power]
-# suspend is unusable here; the power button is handled by chopin-powerkey
-# (blank/unblank) so gsd must not try to suspend on it.
+# No idle suspend: suspend is unusable here (see chopin-docs/power/).
+sleep-inactive-ac-type='nothing'
+sleep-inactive-battery-type='nothing'
+# The power button is handled by chopin-powerkey, which toggles the backlight
+# directly.  gsd must not act on it: its only options are suspend/hibernate/power
+# off/interactive, and suspend is blocked, which used to pop up an end-session
+# dialog instead.
 power-button-action='nothing'

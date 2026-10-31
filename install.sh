@@ -32,10 +32,24 @@ done
 	log "config $mv"
 done )
 
+# --- swap -----------------------------------------------------------------
+# gnome-shell can balloon to several gigabytes after repeated session restarts
+# (the OOM killer shot it down once: "anon-rss:6086184kB" on a 6.5 GB machine),
+# so keep a swapfile as a safety net.
+if [ ! -e /swapfile ] && [ "$(id -u)" = 0 ]; then
+	fallocate -l 4G /swapfile 2>/dev/null || \
+		dd if=/dev/zero of=/swapfile bs=1M count=4096 status=none
+	chmod 600 /swapfile
+	mkswap /swapfile >/dev/null
+	swapon /swapfile
+	grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+	log "4 GB swapfile created"
+fi
+
 # --- activate -------------------------------------------------------------
 systemctl daemon-reload
 for u in chopin-scp chopin-iio-trigger chopin-sensorproxy \
-	 chopin-gpu-freq chopin-charge-tune chopin-growfs; do
+	 chopin-gpu-freq chopin-charge-tune chopin-growfs chopin-powerkey; do
 	[ -f "/etc/systemd/system/$u.service" ] && systemctl enable "$u" >/dev/null 2>&1 || true
 done
 udevadm control --reload >/dev/null 2>&1 || true

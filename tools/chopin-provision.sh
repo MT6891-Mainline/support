@@ -97,6 +97,20 @@ if [ -f "$HERE/chopin-gpu-freq.service" ]; then
 	log "GPU clock service installed (inactive until /etc/chopin-gpu-freq)"
 fi
 
+# --- 3d. power button -> screen off -----------------------------------------
+# The power button cannot suspend on this board (see port/SUSPEND-ANALYSIS.md
+# §23), so it toggles the backlight instead; GNOME's own action is set to
+# 'nothing' by the dconf defaults so gsd does not try to suspend first.
+if [ -f "$HERE/chopin-powerkey.py" ]; then
+	install -m 0755 "$HERE/chopin-powerkey.py" /usr/local/bin/chopin-powerkey
+fi
+if [ -f "$HERE/chopin-powerkey.service" ]; then
+	install -m 0644 "$HERE/chopin-powerkey.service" \
+		/etc/systemd/system/chopin-powerkey.service
+	systemctl enable chopin-powerkey.service >/dev/null 2>&1
+	log "power button service installed (screen off toggle)"
+fi
+
 # --- 3c. charging current --------------------------------------------------
 # The MT6360 comes up with the SDP default (500 mA in, 500 mA charge) which
 # leaves ~85 mA for the battery; the service raises it to 900 mA on a plain USB
@@ -123,11 +137,6 @@ mkdir -p /etc/systemd/logind.conf.d
 install -m 0644 "$HERE/logind-no-suspend.conf" \
 	/etc/systemd/logind.conf.d/10-chopin-no-suspend.conf
 
-# Suspend cannot work here (see the .desktop comment), so hold an inhibitor
-# from inside the session rather than trying to fix suspend.
-install -d /etc/xdg/autostart
-install -m 0644 "$HERE/chopin-no-suspend.desktop" \
-	/etc/xdg/autostart/chopin-no-suspend.desktop
 
 # GDM must not race the display probe, otherwise mutter reports
 # "No GPUs found" and GDM retries in a loop (flashing panel).
