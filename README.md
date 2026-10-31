@@ -11,6 +11,7 @@ Redmi Note 10 Pro（MT6891 / "chopin"）主线 Linux 移植后，**系统跑起�
 | 路径 | 内容 |
 | --- | --- |
 | `firmware/` | `mali_csffw.bin`（panfrost G77）、`mediatek/WIFI_*`（MT7961 WiFi 固件） |
+| `dtb/stock-base.dtb` | **厂商 DTB**（201 KB）。boot 镜像必须携带它：LK 会校验，自有 DTB 在 `setup_arch()` 里替换。来源是原机 boot 分区，`n10p/boot_a.img` 是它的最终出处 |
 | `rootfs/usr/local/bin/` | 6 个运行时脚本：`chopin-scp-start`、`setup-iio-trigger`、`chopin-sensorproxy`、`chopin-gpu-freq`、`chopin-charge-tune.sh`、`chopin-rotate` |
 | `rootfs/etc/systemd/system/` | 6 个 unit + `gdm.service.d/10-wait-for-dsi.conf` |
 | `rootfs/etc/udev/rules.d/` | 插拔时重新应用充电限流 |
@@ -47,6 +48,7 @@ sudo ./install.sh
 | `dconf/00-chopin` | GNOME 系统默认：60 秒熄屏、不锁屏、无 suspend 菜单项 |
 | `chopin-growfs.service` | 首次启动自动扩展根文件系统 |
 | `mali_csffw.bin` | panfrost 必需，否则 GPU 无法初始化 |
+| `dtb/stock-base.dtb` | 没有它打不出可启动的镜像（`build-images.sh STOCK_DTB=` 需要） |
 | `mediatek/WIFI_*` | MT7961 WiFi 固件（Debian 包 `firmware-misc-nonfree` 也提供同样的文件） |
 
 ## 不在本仓库里的东西
