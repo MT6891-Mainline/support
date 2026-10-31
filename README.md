@@ -78,6 +78,24 @@ DRM 熄屏路径正是所有挂起尝试最终把画面搞花的地方。真正�
 | `idle-delay` | 60 s | 自动熄屏 |
 | swapfile | 4 GB | 防 gnome-shell 偶发膨胀触发 OOM |
 
+## 中文环境
+
+| 项 | 内容 |
+| --- | --- |
+| 系统 locale | `/etc/locale.conf` → `LANG=zh_CN.UTF-8`（`zh_CN.utf8` 需已生成） |
+| Firefox | `firefox-esr-l10n-zh-cn` + `rootfs/usr/lib/firefox-esr/defaults/pref/chopin-locale.js`（强制 `intl.locale.requested="zh-CN"`） |
+| Chromium | `chromium-l10n`（跟随会话 `LANG`，无需额外配置） |
+
+安装：
+
+```sh
+apt-get install -y firefox-esr-l10n-zh-cn chromium-l10n
+echo "LANG=zh_CN.UTF-8" > /etc/locale.conf
+```
+
+浏览器若仍是英文，删掉 `~/.mozilla/firefox` 让它重建配置（首次启动前的默认
+pref 才会生效）。
+
 ## 不在本仓库里的东西
 
 | 东西 | 在哪 |
