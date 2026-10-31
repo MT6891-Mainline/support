@@ -85,6 +85,7 @@ DRM 熄屏路径正是所有挂起尝试最终把画面搞花的地方。真正�
 | 系统 locale | `/etc/locale.conf` → `LANG=zh_CN.UTF-8`（`zh_CN.utf8` 需已生成） |
 | Firefox | `firefox-esr-l10n-zh-cn` + `rootfs/usr/lib/firefox-esr/defaults/pref/chopin-locale.js`（强制 `intl.locale.requested="zh-CN"`） |
 | Chromium | `chromium-l10n`（跟随会话 `LANG`，无需额外配置） |
+| **中文输入** | `ibus-libpinyin` + dconf 输入源 `[('xkb','us'), ('ibus','libpinyin')]`；**Super+Space** 切换中英文 |
 
 安装：
 

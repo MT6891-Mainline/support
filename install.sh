@@ -32,6 +32,14 @@ done
 	log "config $mv"
 done )
 
+# --- input method ---------------------------------------------------------
+# Simplified Chinese pinyin through ibus; the input source itself comes from the
+# dconf defaults (00-chopin), this only makes sure the engine is present.
+if ! dpkg -s ibus-libpinyin >/dev/null 2>&1; then
+	DEBIAN_FRONTEND=noninteractive apt-get install -y ibus-libpinyin \
+		>/dev/null 2>&1 || log "WARN: ibus-libpinyin not installed"
+fi
+
 # --- swap -----------------------------------------------------------------
 # gnome-shell can balloon to several gigabytes after repeated session restarts
 # (the OOM killer shot it down once: "anon-rss:6086184kB" on a 6.5 GB machine),

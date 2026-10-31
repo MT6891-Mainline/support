@@ -21,3 +21,10 @@ sleep-inactive-battery-type='nothing'
 # off/interactive, and suspend is blocked, which used to pop up an end-session
 # dialog instead.
 power-button-action='nothing'
+
+# Chinese input: keep English as the first source and libpinyin second, so
+# Super+Space (the default switch-input-source binding) toggles between them.
+# Needs ibus-libpinyin installed; GNOME starts ibus automatically once an ibus
+# source is configured.
+[org/gnome/desktop/input-sources]
+sources=[('xkb', 'us'), ('ibus', 'libpinyin')]
