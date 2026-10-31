@@ -1,0 +1,12 @@
+[Unit]
+Description=chopin: power button blanks the screen instead of suspending
+After=graphical.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/chopin-powerkey
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

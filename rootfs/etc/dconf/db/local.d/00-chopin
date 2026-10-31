@@ -6,7 +6,10 @@
 # the fence slots so it should survive now, but there is no reason for a
 # charging phone to blank itself in the first place.
 [org/gnome/desktop/session]
-idle-delay=uint32 0
+# 60 s: blanking is safe since v143 (the DSI underrun recovery retries until the
+# panel is re-enabled and then re-initialises it).  This is where the idle power
+# saving comes from - there is no working suspend on this board.
+idle-delay=uint32 60
 
 [org/gnome/settings-daemon/plugins/power]
 sleep-inactive-ac-type='nothing'
@@ -14,3 +17,8 @@ sleep-inactive-battery-type='nothing'
 
 [org/gnome/desktop/screensaver]
 lock-enabled=false
+
+[org/gnome/settings-daemon/plugins/power]
+# suspend is unusable here; the power button is handled by chopin-powerkey
+# (blank/unblank) so gsd must not try to suspend on it.
+power-button-action='nothing'
