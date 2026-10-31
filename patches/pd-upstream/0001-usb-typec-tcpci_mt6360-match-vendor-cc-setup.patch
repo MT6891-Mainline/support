@@ -1,0 +1,58 @@
+From: Tikily <Tikily7047@outlook.com>
+Date: Sat, 31 Oct 2026 13:26:04 +0800
+Subject: [PATCH 1/2] usb: typec: tcpci_mt6360: match the vendor CC and
+ connection-detect setup
+
+MediaTek's own tcpc_mt6360.c initialises two things this driver does not,
+and both matter for PD:
+
+  * TCPC_POWER_CTRL = 0x70.  The reset value leaves the bleed discharge
+    enabled, which keeps a load on the CC pins; the vendor turns it off
+    and enables auto discharge disconnect instead.  With the bleed
+    discharge on, the CC level can still be detected at a glance (so the
+    role looks fine), but the BMC signalling is degraded.
+
+  * TCPC_TCPC_CTRL bit 6 (EN_LOOK4CONNECTION_ALERT).  The vendor unmasks
+    it explicitly so the upper layer is told that a partner is present.
+
+Neither write is needed for basic CC detection, which is why the port
+worked without them, but together with the missing alert unmask they keep
+PD from ever starting.
+
+Signed-off-by: Tikily <Tikily7047@outlook.com>
+---
+Tested on a Xiaomi Redmi Note 10 Pro (MT6893, "chopin"); the register
+values are taken from the vendor tcpc_mt6360.c init sequence.
+
+diff --git a/drivers/usb/typec/tcpm/tcpci_mt6360.c b/drivers/usb/typec/tcpm/tcpci_mt6360.c
+index 881ffacbf..9eabf423a 100644
+--- a/drivers/usb/typec/tcpm/tcpci_mt6360.c
++++ b/drivers/usb/typec/tcpm/tcpci_mt6360.c
+@@ -125,6 +125,27 @@ static int mt6360_tcpc_init(struct tcpci *tcpci, struct tcpci_data *tdata)
+ 	if (ret)
+ 		return ret;
+ 
++	/*
++	 * chopin: two writes the vendor TCPC driver does and this one did not.
++	 *
++	 * TCPC_POWER_CTRL defaults with the bleed discharge enabled, which keeps
++	 * the CC pins loaded; the vendor sets 0x70 (bleed discharge off, auto
++	 * discharge disconnect on).  Without it the port reports a connection
++	 * (CC is detected, TCPM enters sink state) but no PD message ever
++	 * arrives, so there is never a contract and VBUS stays at 5 V.
++	 *
++	 * The LOOK4CONNECTION alert is what tells TCPM the partner is there at
++	 * all; the vendor unmasks it explicitly.
++	 */
++	ret = regmap_write(regmap, TCPC_POWER_CTRL, 0x70);
++	if (ret)
++		return ret;
++
++	ret = regmap_set_bits(regmap, TCPC_TCPC_CTRL,
++			      TCPC_TCPC_CTRL_EN_LK4CONN_ALRT);
++	if (ret)
++		return ret;
++
+ 	/* Set shipping mode off, AUTOIDLE on */
+ 	return regmap_write(regmap, MT6360_REG_MODECTRL2, 0x7A);
+ }

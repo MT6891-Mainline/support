@@ -1,0 +1,15 @@
+[Unit]
+Description=Set the GPU core clock before the compositor starts
+# Must run while the GPU is idle: the safe retune parks the mfg_sel mux on
+# clk26m for a moment, and a GPU job in flight would see that as a hang.
+After=systemd-udev-settle.service
+Before=gdm.service display-manager.service
+ConditionPathExists=/etc/chopin-gpu-freq
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/chopin-gpu-freq
+
+[Install]
+WantedBy=multi-user.target

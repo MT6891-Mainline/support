@@ -1,0 +1,16 @@
+# chopin: keep the screen on and never suspend.
+#
+# A blank/unblank (or a real suspend) resets the v2 DRM fence session state
+# and, on the pre-v126 kernel, every following commit failed with
+# "layer_info is null" and the panel showed garbled stripes.  v126 recycles
+# the fence slots so it should survive now, but there is no reason for a
+# charging phone to blank itself in the first place.
+[org/gnome/desktop/session]
+idle-delay=uint32 0
+
+[org/gnome/settings-daemon/plugins/power]
+sleep-inactive-ac-type='nothing'
+sleep-inactive-battery-type='nothing'
+
+[org/gnome/desktop/screensaver]
+lock-enabled=false

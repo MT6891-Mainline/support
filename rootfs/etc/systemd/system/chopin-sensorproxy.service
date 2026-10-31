@@ -1,0 +1,12 @@
+[Unit]
+Description=net.hadess.SensorProxy for chopin (replaces iio-sensor-proxy 3.7)
+After=chopin-scp.service chopin-iio-trigger.service
+Wants=chopin-scp.service
+
+[Service]
+ExecStart=/usr/local/bin/chopin-sensorproxy
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,80 @@
+From: Tikily <Tikily7047@outlook.com>
+Date: Sat, 31 Oct 2026 13:29:28 +0800
+Subject: [PATCH 2/2] usb: typec: tcpci_mt6360: unmask the TCPC alerts
+
+mt6360_tcpc_init() writes TCPC_ALERT_MASK = 0 and comments "write all
+alert to masked", leaving it to the tcpci core to unmask what it needs.
+The i2c probe path does exactly that at the very end:
+
+	err = tcpci_write16(chip->tcpci, TCPC_ALERT_MASK,
+			    chip->tcpci->alert_mask);
+
+but tcpci_mt6360 is a platform driver and mt6360_tcpc_probe() has no such
+write.  tcpci_register_port() does not write the mask either, so the mask
+stays 0 for the whole lifetime of the device and the TCPC never asserts
+PD_IRQB.
+
+The visible effect is subtle and easy to misdiagnose: TCPM polls CC status,
+so it does detect the sink role and reports power_role=sink with the right
+data role, but it never receives a PD Source_Capabilities message.  No
+contract is made, power_operation_mode stays "default" and VBUS is stuck
+at 5 V with any PD charger.
+
+Confirmed on an MT6893 board by reading the TCPC directly (i2c address
+0x4e, independent of the PMU at 0x34):
+
+	TCPC_ALERT      (0x10) = 0x01   <- CC_STATUS pending
+	TCPC_ALERT_MASK (0x12) = 0x00   <- but everything is masked
+
+with /proc/interrupts showing zero interrupts for mt6360-tcpc for the
+whole uptime.  After unmasking, the same board negotiates a 12 V/2.25 A
+contract and charges the 5 Ah cell at ~3.8 A.
+
+Unmask the same set tcpci_init() asks for, so both probe paths behave
+identically.
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Tikily <Tikily7047@outlook.com>
+---
+Tested on a Xiaomi Redmi Note 10 Pro (MT6893, "chopin").
+
+This has never worked for the platform probe path; please add the
+appropriate Fixes: tag.
+
+diff --git a/drivers/usb/typec/tcpm/tcpci_mt6360.c b/drivers/usb/typec/tcpm/tcpci_mt6360.c
+index 9eabf423a..eed902f4e 100644
+--- a/drivers/usb/typec/tcpm/tcpci_mt6360.c
++++ b/drivers/usb/typec/tcpm/tcpci_mt6360.c
+@@ -193,6 +193,32 @@ static int mt6360_tcpc_probe(struct platform_device *pdev)
+ 		return ret;
+ 	}
+ 
++	/*
++	 * chopin: tcpci_i2c_probe() unmasks the alerts it registered after wiring
++	 * the IRQ up; this platform driver never did.  mt6360_tcpc_init() writes
++	 * TCPC_ALERT_MASK = 0 ("write all alert to masked"), so the mask stayed at
++	 * 0 and the TCPC never asserted PD_IRQB - which is exactly what the
++	 * hardware showed: ALERT = 0x01 pending, ALERT_MASK = 0x00, and zero
++	 * interrupts for the whole uptime.  Without alerts TCPM can do CC
++	 * detection (it polls) but never sees a PD Source_Capabilities, so
++	 * VBUS stays at 5 V.
++	 *
++	 * Unmask what tcpci_init() asks for.
++	 */
++	{
++		u16 mask = TCPC_ALERT_TX_SUCCESS | TCPC_ALERT_TX_FAILED |
++			   TCPC_ALERT_TX_DISCARDED | TCPC_ALERT_RX_STATUS |
++			   TCPC_ALERT_RX_HARD_RST | TCPC_ALERT_CC_STATUS;
++
++		ret = mti->tdata.regmap ? mt6360_tcpc_write16(mti->tdata.regmap,
++							TCPC_ALERT_MASK, mask) : -ENODEV;
++		if (ret) {
++			dev_err(mti->dev, "Failed to unmask alerts\n");
++			tcpci_unregister_port(mti->tcpci);
++			return ret;
++		}
++	}
++
+ 	device_init_wakeup(&pdev->dev, true);
+ 	platform_set_drvdata(pdev, mti);
+ 

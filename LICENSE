@@ -1,0 +1,8 @@
+GPL-2.0-only
+
+The shell scripts, systemd units and configuration in this repository are
+distributed under the GNU General Public License v2.0 only, matching the kernel.
+
+The firmware blobs under firmware/ are proprietary redistributable binaries
+provided by MediaTek / Arm; they are carried here only so a chopin rootfs can be
+rebuilt reproducibly.  See each vendor's licence terms.

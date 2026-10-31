@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=chopin: keep the system out of suspend
+Comment=Suspend cannot work on this port: the USB gadget (ttyGS0 console) refuses to suspend and a failed suspend leaves the display half torn down, which shows as a garbled panel. Hold a logind inhibitor so nothing can suspend the machine.
+Exec=gnome-session-inhibit --inhibit suspend --reason "suspend is unsupported on chopin" sleep infinity
+Icon=system-suspend
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,18 @@
+[Unit]
+Description=Grow the root filesystem to fill its partition
+DefaultDependencies=no
+After=local-fs.target
+Requires=local-fs.target
+# The marker is removed after a successful run, so this happens exactly once.
+ConditionPathExists=/etc/chopin/grow-rootfs
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# The image is written to the much larger userdata partition; ext4 can be
+# grown online, so this is safe on a mounted and busy root.
+ExecStart=/usr/lib/systemd/systemd-growfs /
+ExecStartPost=/bin/rm -f /etc/chopin/grow-rootfs
+
+[Install]
+WantedBy=local-fs.target

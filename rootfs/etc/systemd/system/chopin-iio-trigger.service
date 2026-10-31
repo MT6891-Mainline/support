@@ -1,0 +1,12 @@
+[Unit]
+Description=Bind an hrtimer trigger to the chopin accelerometer
+After=chopin-scp.service local-fs.target
+Requires=chopin-scp.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/setup-iio-trigger
+
+[Install]
+WantedBy=multi-user.target

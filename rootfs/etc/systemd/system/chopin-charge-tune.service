@@ -1,0 +1,11 @@
+[Unit]
+Description=chopin: raise the charger current limits
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/chopin-charge-tune.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

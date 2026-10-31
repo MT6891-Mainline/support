@@ -1,0 +1,12 @@
+[Unit]
+Description=Start the SCP core (chopin sensors)
+Before=chopin-iio-trigger.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/chopin-scp-start
+
+[Install]
+WantedBy=multi-user.target

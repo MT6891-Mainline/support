@@ -1,0 +1,2 @@
+# Re-apply the charging limits whenever the cable or port type changes.
+ACTION=="change", SUBSYSTEM=="power_supply", ENV{POWER_SUPPLY_NAME}=="mt6360-chg.2.auto", TAG+="systemd", ENV{SYSTEMD_WANTS}+="chopin-charge-tune.service"
