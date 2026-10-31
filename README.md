@@ -11,7 +11,7 @@ Redmi Note 10 Pro（MT6891 / "chopin"）主线 Linux 移植后，**系统跑起�
 | 路径 | 内容 |
 | --- | --- |
 | `firmware/` | `mali_csffw.bin`（panfrost G77）、`mediatek/WIFI_*`（MT7961 WiFi 固件） |
-| `rootfs/usr/local/bin/` | 6 个脚本：SCP 启动、IIO trigger、sensorproxy、GPU 频率、充电限流、自动旋转 |
+| `rootfs/usr/local/bin/` | 6 个运行时脚本：`chopin-scp-start`、`setup-iio-trigger`、`chopin-sensorproxy`、`chopin-gpu-freq`、`chopin-charge-tune.sh`、`chopin-rotate` |
 | `rootfs/etc/systemd/system/` | 6 个 unit + `gdm.service.d/10-wait-for-dsi.conf` |
 | `rootfs/etc/udev/rules.d/` | 插拔时重新应用充电限流 |
 | `rootfs/etc/xdg/autostart/` | 挂起抑制锁 |
@@ -20,7 +20,7 @@ Redmi Note 10 Pro（MT6891 / "chopin"）主线 Linux 移植后，**系统跑起�
 | `rootfs/etc/chopin-gpu-freq` | GPU 频率（`810000000`） |
 | `kernel/chopin_defconfig` | 完整内核 defconfig |
 | `kernel/config-7.3-chopin` | 当前 boot 镜像实际使用的 `.config` |
-| `tools/` | `build-kernel.sh`、`build-images.sh`（打包 boot 镜像） |
+| `tools/` | `build-kernel.sh`、`build-images.sh`（打包 boot 镜像）、`chopin-provision.sh`、`install-g77-driver.sh`、`fix-wifi-bt.sh` |
 | `patches/pd-upstream/` | 2 个上游补丁（tcpci_mt6360 的 PD 修复） |
 | `docs/` | 关键设计文档（状态、充电、GPU、挂起、DRM） |
 
