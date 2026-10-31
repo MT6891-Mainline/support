@@ -1,6 +1,14 @@
 [Unit]
-Description=chopin: power button blanks the screen instead of suspending
-After=graphical.target
+Description=chopin: power button toggles the screen (backlight)
+# No After=graphical.target here: combined with WantedBy=multi-user.target it
+# forms an ordering cycle (graphical.target wants multi-user.target) and systemd
+# drops the whole job to break it:
+#
+#   multi-user.target: Found ordering cycle on chopin-powerkey.service/start
+#   multi-user.target: Job chopin-powerkey.service/start deleted
+#
+# The daemon only needs /dev/input/event0, which exists well before this point.
+After=systemd-udev-settle.service
 
 [Service]
 Type=simple
