@@ -97,16 +97,31 @@ Denial's quick panel talks to BlueZ over the system bus for the power toggle.
 Denial owns idle handling; logind is set to `HandlePowerKey=ignore` and
 `IdleAction=ignore` so nothing else fights it.
 
-```
-# ~/.config/denial/settings.json  (change it through Settings or the control
-# protocol - Denial owns this file and rewrites it from its schema)
+```json
+// ~/.config/denial/settings.json - the state this phone actually runs.
+// Denial owns this file: edit it through Settings or the control protocol.
 "power": {
-  "idleDpmsTimeoutSeconds": 60,      # blank the panel after this much inactivity
-  "idleLockTimeoutSeconds": 60,      # lock the session (independent timer)
-  "idleSuspendEnabled": false,       # suspend is not usable on this board
-  "powerButtonAction": "screenOff"   # NOT "powerOff" - the button must not shut down
+  "idleDpmsEnabled": true,
+  "idleDpmsTimeoutSeconds": 300,     // blank the panel after 5 min idle
+  "idleLockEnabled": true,
+  "idleLockTimeoutSeconds": 300,     // lock the session (independent timer)
+  "idleSuspendEnabled": false,       // suspend is not usable on this board
+  "powerButtonAction": "suspend"     // see below: Denial degrades this to DPMS
 }
 ```
+
+`powerButtonAction` is `suspend` in the saved document, but on this board Denial
+does not actually suspend - the log shows what it really does:
+
+```
+deniald::dpms: locked the session before power-button display off
+deniald::dpms: power button requested compositor-owned display power toggle
+deniald::dpms: powered off KMS output through DRM DPMS  output="DSI-1"
+```
+
+i.e. a lock plus a DRM DPMS off, and on the next press a fresh frame powers the
+output back on.  That is exactly the clean cycle we want, and it is why the power
+button neither powers the phone off nor garbles the panel.
 
 Both timers are counted from the last input event and are independent, so set
 both if you want "one minute" to mean one minute for locking *and* blanking.
@@ -124,9 +139,9 @@ real suspend does.
 ### Editing settings
 
 `settings.json` is Rust-owned: it validates and rewrites the document, so a hand
-edit can be normalized away (a `powerButtonAction = screenOff` written by hand
-came back as `powerOff`).  Change settings through Denial Settings or the control
-protocol:
+edit can be normalized away - a `powerButtonAction` written straight into the file
+came back with a different value.  Change settings through Denial Settings or the
+control protocol:
 
 ```json
 {"version":1,"id":1,"method":"settings.document.get"}
