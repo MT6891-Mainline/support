@@ -97,18 +97,20 @@ if [ -f "$HERE/chopin-gpu-freq.service" ]; then
 	log "GPU clock service installed (inactive until /etc/chopin-gpu-freq)"
 fi
 
-# --- 3d. power button -> screen off -----------------------------------------
-# The power button cannot suspend on this board (see port/SUSPEND-ANALYSIS.md
-# §23), so it toggles the backlight instead; GNOME's own action is set to
-# 'nothing' by the dconf defaults so gsd does not try to suspend first.
-if [ -f "$HERE/chopin-powerkey.py" ]; then
-	install -m 0755 "$HERE/chopin-powerkey.py" /usr/local/bin/chopin-powerkey
+# --- 3d. Denial session ------------------------------------------------------
+# Denial owns the input devices (event0/1/2), so the power button is its
+# screen-off action; logind must not act on it (HandlePowerKey=ignore).  The
+# GNOME-era chopin-powerkey daemon is not part of the Denial branch.
+if [ -f "$HERE/denial-session.conf" ]; then
+	install -d /etc/denial
+	install -m 0644 "$HERE/denial-session.conf" /etc/denial/session.conf
+	log "denial session overrides installed"
 fi
-if [ -f "$HERE/chopin-powerkey.service" ]; then
-	install -m 0644 "$HERE/chopin-powerkey.service" \
-		/etc/systemd/system/chopin-powerkey.service
-	systemctl enable chopin-powerkey.service >/dev/null 2>&1
-	log "power button service installed (screen off toggle)"
+if [ -f "$HERE/chopin-sensorproxy.conf" ]; then
+	install -d /etc/dbus-1/system.d
+	install -m 0644 "$HERE/chopin-sensorproxy.conf" \
+		/etc/dbus-1/system.d/chopin-sensorproxy.conf
+	log "SensorProxy D-Bus policy installed"
 fi
 
 # --- 3c. charging current --------------------------------------------------
@@ -140,72 +142,33 @@ install -m 0644 "$HERE/logind-no-suspend.conf" \
 
 # GDM must not race the display probe, otherwise mutter reports
 # "No GPUs found" and GDM retries in a loop (flashing panel).
-install -d /etc/systemd/system/gdm.service.d
-install -m 0644 "$HERE/gdm-wait-for-dsi.conf" \
-	/etc/systemd/system/gdm.service.d/10-wait-for-dsi.conf
 
-# System-wide dconf defaults so the settings also apply before the first login.
-mkdir -p /etc/dconf/db/local.d /etc/dconf/profile
-install -m 0644 "$HERE/dconf/00-chopin" /etc/dconf/db/local.d/00-chopin
-install -m 0644 "$HERE/dconf/user" /etc/dconf/profile/user
-command -v dconf >/dev/null 2>&1 && dconf update >/dev/null 2>&1
-log "logind + dconf defaults installed"
-
-# --- 5. display manager: gdm with autologin ---------------------------------
-if [ -f /usr/lib/systemd/system/gdm.service ] || [ -f /lib/systemd/system/gdm.service ]; then
-	id "$SESSION_USER" >/dev/null 2>&1 || {
-		log "no user $SESSION_USER, skipping autologin"; }
-	if id "$SESSION_USER" >/dev/null 2>&1; then
-		# DRM/input/GPU access for the session user.
-		usermod -aG video,render,input,audio,netdev,bluetooth \
-			"$SESSION_USER" 2>/dev/null
-		mkdir -p /etc/gdm3
-		# GDM refuses AutomaticLogin=root ("user != root" in gdm-autologin),
-		# and its greeter cannot start here: /run/user/108 has no user
-		# manager, and the X11 fallback dies with "Cannot run in framebuffer
-		# mode".  Autologin is therefore the only way in.
-		cat > /etc/gdm3/daemon.conf <<G
-[daemon]
-AutomaticLoginEnable=true
-AutomaticLogin=$SESSION_USER
-WaylandEnable=true
-G
-		log "autologin $SESSION_USER"
+# --- 5. Denial session on tty1 ----------------------------------------------
+# Denial replaces GDM on this branch: no display manager, no greeter.  The phone
+# has no hardware keyboard, so tty1 logs in automatically and the login profile
+# starts denial-session --start-locked (Denial then shows its own lock screen).
+if id "$SESSION_USER" >/dev/null 2>&1; then
+	usermod -aG video,render,input,audio,netdev,bluetooth "$SESSION_USER" 2>/dev/null
+	home="$(getent passwd "$SESSION_USER" | cut -d: -f6)"
+	if [ -f "$HERE/denial-profile" ]; then
+		install -m 0644 "$HERE/denial-profile" "$home/.profile"
+		chown "$SESSION_USER:$SESSION_USER" "$home/.profile"
+		log "denial login profile for $SESSION_USER"
 	fi
+	install -d -o "$SESSION_USER" -g "$SESSION_USER" \
+		"$home/.config/systemd/user/denial-session.target.wants"
+	ln -sf /usr/lib/systemd/user/chopin-rotator.service \
+		"$home/.config/systemd/user/denial-session.target.wants/chopin-rotator.service"
+	log "chopin-rotator enabled for $SESSION_USER"
 fi
 
-# The display-manager.service symlink is a Debian "alternative": purging sddm
-# deletes it, and nothing re-creates it when GDM is installed non-interactively.
-# Without it the machine boots to a black screen with no session at all.
-if [ -f /usr/lib/systemd/system/gdm.service ]; then
-	ln -sf /usr/lib/systemd/system/gdm.service \
-		/etc/systemd/system/display-manager.service
-	printf '/usr/sbin/gdm3\n' > /etc/X11/default-display-manager
-	systemctl disable sddm.service >/dev/null 2>&1
-	log "display-manager -> gdm"
-fi
+# Make sure no display manager fights for seat0 / the tty1 session.
+for dm in gdm3 gdm sddm lightdm; do
+	systemctl disable "$dm" >/dev/null 2>&1 || true
+done
 
-# X sessions cannot start on this board - Xorg dies with "Cannot run in
-# framebuffer mode" - and GDM picks the session recorded in AccountsService.
-# A stale "Session=gnome-xorg" (easy to get: run gnome-shell --nested with
-# DISPLAY set, and AccountsService remembers the X session) makes GDM try the X
-# session, the session never registers and autologin looks broken on every
-# boot after that.  Hide the X sessions so only Wayland can be chosen, and
-# repoint a stale recording.
-if [ -f /usr/share/xsessions/gnome-xorg.desktop ]; then
-	install -d /usr/local/share/xsessions-disabled
-	mv /usr/share/xsessions/gnome-xorg.desktop \
-		/usr/local/share/xsessions-disabled/ 2>/dev/null
-	log "X session disabled (Xorg cannot start here)"
-fi
-
-acct=/var/lib/AccountsService/users/$SESSION_USER
-if [ -f "$acct" ] && grep -q '^Session=.*xorg' "$acct"; then
-	sed 's/^Session=.*/Session=gnome/' "$acct" > /tmp/.acct.$$ &&
-		cat /tmp/.acct.$$ > "$acct"
-	rm -f /tmp/.acct.$$
-	log "AccountsService session pinned to gnome (Wayland)"
-fi
+# (No display manager is involved on this branch, so the old GDM/AccountsService
+#  X-session workarounds are gone: Denial is started directly from the tty1 login.)
 
 systemctl daemon-reload >/dev/null 2>&1
 log "done"

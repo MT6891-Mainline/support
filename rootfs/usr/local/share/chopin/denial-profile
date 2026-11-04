@@ -1,0 +1,8 @@
+# chopin: start the Denial session on the panel tty.
+#
+# tty1 autologins (no hardware keyboard on this phone), so the session starts
+# without an authenticated login - the documented way to do that is
+# --start-locked, which brings up Denial's own lock screen first.
+if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
+	exec denial-session --start-locked > /home/kily/denial.log 2>&1
+fi

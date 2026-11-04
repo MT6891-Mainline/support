@@ -18,7 +18,7 @@ Redmi Note 10 Pro（MT6891 / "chopin"）主线 Linux 移植后，**系统跑起�
 | `rootfs/etc/xdg/autostart/` | 挂起抑制锁 |
 | `rootfs/etc/systemd/logind.conf.d/` | logind 不因空闲挂起 |
 | `rootfs/usr/local/bin/chopin-powerkey` | 电源键 → 切换背光（熄屏/亮屏） |
-| `rootfs/etc/dconf/db/local.d/` | GNOME 系统默认（熄屏 60s、电源键 no-op、不锁屏） |
+| `rootfs/etc/denial/session.conf` | Denial 会话覆盖（mobile profile、DRM/render 设备） |
 | `rootfs/etc/chopin-gpu-freq` | GPU 频率（`810000000`） |
 | `kernel/chopin_defconfig` | 完整内核 defconfig |
 | `kernel/config-7.3-chopin` | 当前 boot 镜像实际使用的 `.config` |
@@ -46,37 +46,46 @@ sudo ./install.sh
 | `chopin-charge-tune.sh` + `.service` + udev | MT6360 默认只给 500 mA；识别 PD/DCP/SDP 后按档设置，PD 下可达 3.75 A |
 | `chopin-no-suspend.desktop` + logind conf | 挂起在此平台不可行（见 `docs/SUSPEND-ANALYSIS.md`），用抑制锁挡住 |
 | `gdm-wait-for-dsi.conf` | 等 DSI 连接后再启动 gdm，否则"No GPUs found" |
-| `dconf/00-chopin` | GNOME 系统默认：60 秒熄屏、不锁屏、电源键交给 chopin-powerkey |
-| `chopin-powerkey` | 读 `/dev/input/event0` 的 KEY_POWER，切换背光 |
+| `denial/session.conf` | `DENIAL_SHELL_PROFILE=mobile` + 显示/渲染设备分离 |
+| `chopin-rotator` | 读加速度计 → Denial 控制协议 `outputs.apply` 自动旋转 |
 | `chopin-growfs.service` | 首次启动自动扩展根文件系统 |
 | `mali_csffw.bin` | panfrost 必需，否则 GPU 无法初始化 |
 | `dtb/stock-base.dtb` | 没有它打不出可启动的镜像（`build-images.sh STOCK_DTB=` 需要） |
-| `mediatek/WIFI_*` | MT7961 WiFi 固件（Debian 包 `firmware-misc-nonfree` 也提供同样的文件） |
+| `mediatek/WIFI_*` | MT7961 WiFi 固件（Debian 包 `firmware-misc-电源键 → Denial（`power.powerButtonAction = screenOff`）
 
-## 电源键与熄屏
+Denial 自己接管全部输入设备（`event0/1/2`），电源键由它处理：熄屏 / 亮屏。
+logind 仍然设成 `HandlePowerKey=ignore`，否则它会抢先关机（GNOME 时代就是这样
+把自己关掉的）。
 
-挂起在这个板子上不可用（见 `chopin-docs/power/SUSPEND-ANALYSIS.md` §23），
-所以电源键不做挂起，而是**切换背光**：
+### 自动旋转
+
+Denial **没有**加速度计数据源，它的"自动旋转"开关只是个标志位
+（`settings.rotationLock.enabled`）。真正执行的是 `chopin-rotator`：
 
 ```
-电源键 → chopin-powerkey → /sys/class/backlight/lm36273/brightness
+加速度计 (/sys/bus/iio/devices/iio:device1)
+   ↓
+chopin-rotator（user service，随 denial-session.target）
+   ↓ 先查 rotationLock.enabled（Denial 的开关）
+   ↓ Denial 控制协议 outputs.apply transform=normal|90|180|270
 ```
 
-* 按一下：保存当前亮度 → 背光设为 0（屏幕黑）
-* 再按一下：恢复保存的亮度（瞬时唤醒）
+官方协议保证纯 transform 变更**不触发 modeset、复用缓冲池**，所以可以随时转。
 
-**为什么是背光而不是 DRM 熄屏**：背光切换完全不动 DSI / 面板状态机，零花屏风险；
-DRM 熄屏路径正是所有挂起尝试最终把画面搞花的地方。真正的 DPMS 熄屏仍由
-60 秒空闲触发（那条路径已验证稳定）。
+传感器通过 `chopin-sensorproxy` 发布到 `net.hadess.SensorProxy`（D-Bus 策略在
+`rootfs/etc/dbus-1/system.d/chopin-sensorproxy.conf`，否则名字申请不到）。
 
-配套设置（都在 `install.sh` 里）：
+### 会话启动
 
-| 设置 | 值 | 原因 |
-| --- | --- | --- |
-| `power-button-action` | `'nothing'` | 否则 gsd 会尝试挂起，被拦后弹关机对话框 |
-| `HandlePowerKey` (logind) | `ignore` | 电源键只由 chopin-powerkey 处理 |
-| `idle-delay` | 60 s | 自动熄屏 |
-| swapfile | 4 GB | 防 gnome-shell 偶发膨胀触发 OOM |
+手机没有物理键盘，所以 tty1 自动登录，登录 profile 里启动：
+
+```sh
+exec denial-session --start-locked > ~/denial.log 2>&1
+```
+
+`--start-locked` 是官方要求的：自动登录跳过了认证，必须让 Denial 自己先上锁。
+必须跑在 **seat 会话**（tty1）里——从串口会话启动拿不到 DRM，会直接
+`Failed to open device: Resource temporarily unavailable`。
 
 ## 中文环境
 
@@ -85,7 +94,7 @@ DRM 熄屏路径正是所有挂起尝试最终把画面搞花的地方。真正�
 | 系统 locale | `/etc/locale.conf` → `LANG=zh_CN.UTF-8`（`zh_CN.utf8` 需已生成） |
 | Firefox | `firefox-esr-l10n-zh-cn` + `rootfs/usr/lib/firefox-esr/defaults/pref/chopin-locale.js`（强制 `intl.locale.requested="zh-CN"`） |
 | Chromium | `chromium-l10n`（跟随会话 `LANG`，无需额外配置） |
-| **中文输入** | `ibus-libpinyin` + dconf 输入源 `[('xkb','us'), ('ibus','libpinyin')]`；**Super+Space** 切换中英文 |
+| **中文输入** | Denial 自带键盘走 XKB 布局；中文输入法需在 Denial 设置里配 |
 
 安装：
 

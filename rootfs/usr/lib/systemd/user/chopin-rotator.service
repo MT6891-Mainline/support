@@ -1,0 +1,16 @@
+[Unit]
+Description=chopin: auto-rotate the panel from the accelerometer
+# Starts with the Denial session and waits for its control socket, which only
+# exists once deniald has published it.
+PartOf=denial-session.target
+After=denial-session.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -S "$XDG_RUNTIME_DIR/denial/control.sock" ] && exit 0; sleep 1; done; exit 1'
+ExecStart=/home/kily/chopin-rotator
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=denial-session.target

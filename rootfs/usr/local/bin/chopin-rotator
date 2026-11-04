@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Auto-rotate the chopin panel by driving Denial's control socket.
+
+The accelerometer (IIO device1) is read the same way chopin-rotate did it; the
+resulting orientation is turned into a Denial output transform instead of a
+KWin/KDE call.  Denial applies a transform-only change as a projection while
+rendering into the connector's native buffer, so it does not touch the modeset
+and keeps the existing buffer pool - cheap enough to do on every orientation
+change.
+
+Protocol: docs/protocol/control-v1.md (outputs.get / outputs.apply).
+"""
+import json
+import os
+import socket
+import time
+
+IIO = "/sys/bus/iio/devices/iio:device1"
+OUTPUT = os.environ.get("CHOPIN_ROTATE_OUTPUT", "DSI-1")
+SETTLE = 0.6                      # seconds the orientation must hold
+POLL = 0.25
+
+# accelerometer orientation -> DRM transform
+# The accelerometer axis signs on this panel are mirrored relative to a plain
+# DRM rotation: tilting the phone so the right edge goes up needs 270 degrees of
+# clockwise content rotation, not 90 (confirmed on the device - the first
+# mapping rotated the desktop the wrong way).
+TRANSFORM = {
+    "normal": "normal",
+    "right-up": "270",
+    "bottom-up": "180",
+    "left-up": "90",
+}
+
+
+def read(path):
+    for _ in range(40):
+        try:
+            with open(path) as f:
+                return f.read().strip()
+        except (OSError, TypeError):
+            time.sleep(0.05)
+    return None
+
+
+def orientation():
+    """Return one of normal / right-up / bottom-up / left-up, or None."""
+    vals = {}
+    for axis in "xyz":
+        raw = read("%s/in_accel_%s_raw" % (IIO, axis))
+        scale = read("%s/in_accel_scale" % IIO)
+        if raw is None or scale is None:
+            return None
+        try:
+            vals[axis] = int(raw) * float(scale)
+        except ValueError:
+            return None
+    x, y, z = vals["x"], vals["y"], vals["z"]
+    if abs(z) > 7:
+        return None                      # lying flat: keep the current rotation
+    if abs(y) > 1.6 * abs(x):
+        return "normal" if y > 0 else "bottom-up"
+    if abs(x) > 1.6 * abs(y):
+        return "right-up" if x > 0 else "left-up"
+    return None
+
+
+def socket_path():
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or "/run/user/%d" % os.getuid()
+    return os.path.join(runtime, "denial", "control.sock")
+
+
+def call(method, params=None, req_id=1):
+    req = {"version": 1, "id": req_id, "method": method}
+    if params is not None:
+        req["params"] = params
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.settimeout(5)
+        s.connect(socket_path())
+        s.sendall((json.dumps(req) + "\n").encode())
+        data = b""
+        while not data.endswith(b"\n"):
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+    reply = json.loads(data.decode())
+    if not reply.get("ok"):
+        raise RuntimeError(reply.get("error", reply))
+    return reply["result"]
+
+
+def rotation_locked():
+    """True when Denial's own auto-rotate toggle is off.
+
+    Denial exposes the toggle as settings.rotationLock.enabled (the shell's
+    "自动旋转" switch).  It cannot rotate by itself - it has no accelerometer
+    source - so this daemon does the work, but it must obey that switch or the
+    toggle looks broken.
+    """
+    try:
+        document = call("settings.document.get").get("document", "{}")
+        return bool(json.loads(document).get("rotationLock", {}).get("enabled", False))
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def current_transform(state):
+    for out in state.get("outputs", []):
+        if out.get("name") == OUTPUT:
+            return out.get("transform")
+    return None
+
+
+def apply_transform(state, transform):
+    """Re-send the current configuration with a new transform."""
+    outputs = []
+    for out in state.get("outputs", []):
+        mode = out.get("current_mode") or {}
+        outputs.append({
+            "name": out["name"],
+            "enabled": out.get("enabled", True),
+            "powered": out.get("powered", True),
+            "x": out.get("x", 0),
+            "y": out.get("y", 0),
+            "mode": {
+                "width": mode.get("width", 0),
+                "height": mode.get("height", 0),
+                "refresh_millihz": mode.get("refresh_millihz", 0),
+            },
+            "scale": out.get("scale", 1.0),
+            "transform": transform if out["name"] == OUTPUT
+                         else out.get("transform", "normal"),
+            "adaptive_sync": out.get("adaptive_sync", False),
+        })
+    call("outputs.apply", {
+        "serial": state["serial"],
+        "persistent": False,
+        "outputs": outputs,
+    }, req_id=2)
+
+
+def main():
+    print("chopin-rotator: driving %s through %s" % (OUTPUT, socket_path()),
+          flush=True)
+    pending = None
+    pending_since = 0.0
+    applied = None
+    while True:
+        try:
+            state = call("outputs.get")
+        except (OSError, RuntimeError, ValueError) as err:
+            print("chopin-rotator: control socket: %s" % err, flush=True)
+            time.sleep(2)
+            continue
+
+        if rotation_locked():
+            pending = None
+            time.sleep(POLL)
+            continue
+
+        want = TRANSFORM.get(orientation() or "")
+        if want is None:
+            pending = None
+            time.sleep(POLL)
+            continue
+
+        # require the same orientation for a moment so a jolt does not rotate
+        if want != pending:
+            pending, pending_since = want, time.monotonic()
+        elif time.monotonic() - pending_since >= SETTLE:
+            if current_transform(state) != want and want != applied:
+                try:
+                    apply_transform(state, want)
+                    applied = want
+                    print("chopin-rotator: %s -> %s" % (OUTPUT, want), flush=True)
+                except (OSError, RuntimeError, ValueError) as err:
+                    print("chopin-rotator: apply failed: %s" % err, flush=True)
+        time.sleep(POLL)
+
+
+if __name__ == "__main__":
+    main()

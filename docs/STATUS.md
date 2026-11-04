@@ -11,7 +11,7 @@
 | 启动 | ✅ | preloader → LK → GenieZone → Linux，无 U-Boot/UEFI |
 | 显示 | ✅ | 厂商 `mediatek_v2` DRM，1080x2400 |
 | 触摸 | ✅ | |
-| 桌面 | ✅ | GNOME (gdm + Wayland)，自动登录 `kily` |
+| 桌面 | ✅ | Denial (gdm + Wayland)，自动登录 `kily` |
 | 硬件渲染 | ✅ | panfrost (Mali-G77)，**810 MHz** |
 | 音频 | ✅ | `mt6893mt6359` 声卡 |
 | WiFi / 蓝牙 | ✅ | |
@@ -90,7 +90,7 @@
 | `port/SUSPEND-ANALYSIS.md` | 挂起为何不可行 |
 | `port/V2-DRM-AUDIT.md` | 厂商 DRM 审计 |
 | `port/DRM-CLOCK-GAP.md` | 显示时钟链路 |
-| `port/DEBIAN-ROOTFS.md` | rootfs 构建与 GNOME 配置 |
+| `port/DEBIAN-ROOTFS.md` | rootfs 构建与 Denial 配置 |
 | `port/patches/pd-upstream/` | **两个上游补丁**（tcpci_mt6360） |
 | `port/GPU-HANDOFF.md` / `port/GPU-PORT.md` | GPU 移交笔记 |
 
