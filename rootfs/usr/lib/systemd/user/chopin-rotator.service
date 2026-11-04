@@ -8,7 +8,7 @@ After=denial-session.target
 [Service]
 Type=simple
 ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -S "$XDG_RUNTIME_DIR/denial/control.sock" ] && exit 0; sleep 1; done; exit 1'
-ExecStart=/home/kily/chopin-rotator
+ExecStart=/usr/local/bin/chopin-rotator
 Restart=always
 RestartSec=3
 
