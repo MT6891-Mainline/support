@@ -62,6 +62,21 @@ if id "$CHOPIN_USER" >/dev/null 2>&1; then
 		chown "$CHOPIN_USER:$CHOPIN_USER" "$home/.profile"
 		log "installed $home/.profile (starts Denial on tty1)"
 	fi
+	# Denial's own settings (power policy, 60 Hz panel mode, appearance) as a
+	# starting point for a fresh install.  Denial owns these files, so only seed
+	# them when they do not exist yet.
+	ddir="$home/.config/denial"
+	install -d -o "$CHOPIN_USER" -g "$CHOPIN_USER" "$ddir"
+	for pair in "denial-settings.json:settings.json" \
+		    "denial-outputs.conf:outputs.conf"; do
+		src="$HERE/rootfs/usr/local/share/chopin/${pair%%:*}"
+		dst="$ddir/${pair##*:}"
+		[ -f "$src" ] && [ ! -e "$dst" ] || continue
+		install -m 0644 "$src" "$dst"
+		chown "$CHOPIN_USER:$CHOPIN_USER" "$dst"
+		log "seeded $(basename "$dst")"
+	done
+
 	# the rotation daemon is a user unit; link it into the session target so the
 	# user manager starts it without a manual 'systemctl --user enable'
 	udir="$home/.config/systemd/user"
