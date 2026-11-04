@@ -52,3 +52,42 @@ Transform-only changes do not trigger a modeset and reuse the buffer pool
 `chopin-sensorproxy` publishes `net.hadess.SensorProxy`; the D-Bus policy in
 `etc/dbus-1/system.d/chopin-sensorproxy.conf` is required or the name cannot be
 claimed and no client sees the sensor.
+
+## Audio
+
+Denial talks PulseAudio through **libpulse**, so the session needs a
+PulseAudio-compatible server; Debian 13's PipeWire with `pipewire-pulse` is it:
+
+```sh
+apt-get install -y pipewire pipewire-pulse wireplumber pulseaudio-utils alsa-utils
+# per session user:
+systemctl --user enable --now pipewire.socket pipewire-pulse.socket wireplumber.service
+```
+
+The codec (`mt6893_mt6359`, card 0) has **no UCM profile**, so WirePlumber exposes
+its plain stereo output (`alsa_output.platform-sound.stereo-fallback`). That is
+the only playback path this board has; sound works through it.
+
+Denial connects to it on start:
+
+```
+deniald::system_controls::audio: Denial Rust audio connected through native libpulse
+```
+
+and its volume keys / quick-panel volume slider drive that sink.
+
+## Bluetooth
+
+Already handled by `btmtk` + BlueZ; nothing board-specific to configure. The only
+change is keeping the adapter powered without a manual `bluetoothctl power on`:
+
+```
+# /etc/bluetooth/main.conf
+AutoEnable=true
+```
+
+```sh
+systemctl enable --now bluetooth
+```
+
+Denial's quick panel talks to BlueZ over the system bus for the power toggle.

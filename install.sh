@@ -76,6 +76,34 @@ else
 	log "WARN: user $CHOPIN_USER does not exist - skipping session profile"
 fi
 
+# --- audio ---------------------------------------------------------------
+# Denial's audio worker talks PulseAudio through libpulse, so the session needs a
+# PulseAudio-compatible server - Debian 13's PipeWire with pipewire-pulse.  The
+# MT6359 codec has no UCM profile, so WirePlumber falls back to the plain stereo
+# output; that is the only playback path this board exposes anyway.
+for pkg in pipewire pipewire-pulse wireplumber pulseaudio-utils alsa-utils; do
+	dpkg -s "$pkg" >/dev/null 2>&1 && continue
+	DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg" >/dev/null 2>&1 \
+		|| log "WARN: could not install $pkg"
+done
+if id "$CHOPIN_USER" >/dev/null 2>&1; then
+	uid="$(id -u "$CHOPIN_USER")"
+	runuser -u "$CHOPIN_USER" -- env XDG_RUNTIME_DIR="/run/user/$uid" \
+		systemctl --user enable --now pipewire.socket pipewire-pulse.socket \
+			wireplumber.service >/dev/null 2>&1 \
+		|| log "WARN: could not enable the audio user units"
+	log "audio enabled for $CHOPIN_USER (pipewire + wireplumber)"
+fi
+
+# --- bluetooth ------------------------------------------------------------
+# btmtk + BlueZ already work on this board; the only thing missing is keeping the
+# adapter powered without a manual 'bluetoothctl power on' each boot.
+if [ -f /etc/bluetooth/main.conf ]; then
+	sed -i 's/^#AutoEnable=.*/AutoEnable=true/' /etc/bluetooth/main.conf
+	systemctl enable bluetooth >/dev/null 2>&1 || true
+	log "bluetooth: AutoEnable=true"
+fi
+
 # --- swap -----------------------------------------------------------------
 # A graphical session can balloon after repeated restarts - gnome-shell used to
 # reach 6 GB and get OOM-killed on this 6.5 GB machine - so keep a swapfile as a
