@@ -3,6 +3,16 @@
 # tty1 autologins (no hardware keyboard on this phone), so the session starts
 # without an authenticated login - the documented way to do that is
 # --start-locked, which brings up Denial's own lock screen first.
+#
+# Wait for the display device: the login can happen before udev has created
+# /dev/dri/card1, and denial-session refuses to start then
+#   "configured DRM device is not a character device: /dev/dri/card1"
+# which used to kill the session, restart the getty five times and leave tty1
+# dead after every boot.
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
+	for _ in $(seq 1 60); do
+		[ -c /dev/dri/card1 ] && [ -c /dev/dri/renderD128 ] && break
+		sleep 1
+	done
 	exec denial-session --start-locked > /home/kily/denial.log 2>&1
 fi
