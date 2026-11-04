@@ -91,3 +91,63 @@ systemctl enable --now bluetooth
 ```
 
 Denial's quick panel talks to BlueZ over the system bus for the power toggle.
+
+## Power management
+
+Denial owns idle handling; logind is set to `HandlePowerKey=ignore` and
+`IdleAction=ignore` so nothing else fights it.
+
+```
+# ~/.config/denial/settings.json  (change it through Settings or the control
+# protocol - Denial owns this file and rewrites it from its schema)
+"power": {
+  "idleDpmsTimeoutSeconds": 60,      # blank the panel after this much inactivity
+  "idleLockTimeoutSeconds": 60,      # lock the session (independent timer)
+  "idleSuspendEnabled": false,       # suspend is not usable on this board
+  "powerButtonAction": "screenOff"   # NOT "powerOff" - the button must not shut down
+}
+```
+
+Both timers are counted from the last input event and are independent, so set
+both if you want "one minute" to mean one minute for locking *and* blanking.
+Denial logs every transition:
+
+```
+deniald::dpms: locked the session after inactivity
+deniald::dpms: powered off KMS output through DRM DPMS  output="DSI-1"
+```
+
+The panel comes back with a fresh frame (`queued a fresh frame to power on the
+KMS output`), which is why this DPMS cycle does not garble the screen while a
+real suspend does.
+
+### Editing settings
+
+`settings.json` is Rust-owned: it validates and rewrites the document, so a hand
+edit can be normalized away (a `powerButtonAction = screenOff` written by hand
+came back as `powerOff`).  Change settings through Denial Settings or the control
+protocol:
+
+```json
+{"version":1,"id":1,"method":"settings.document.get"}
+{"version":1,"id":2,"method":"settings.document.apply",
+ "params":{"expected_revision":30,"document":"{...}"}}
+```
+
+## Panel mode and DSI underruns
+
+The panel advertises 1080x2400 at 120/60/50/48/30 Hz.  A handful of DSI buffer
+underruns at boot is normal (fbcon taking the panel over).  The kernel only runs
+the full ESD recovery when ten underruns land inside two seconds
+(`MTK_DSI_UNDERRUN_BURST_LIMIT`), because that recovery re-initialises the panel
+behind the compositor's back and used to garble every boot - and with Denial
+holding DRM master it left `deniald` stuck in D state, unkillable.
+
+`~/.config/denial/outputs.conf` pins the mode:
+
+```
+mode=DSI-1,1080,2400,60000
+```
+
+60 Hz halves the DSI bandwidth; 120 Hz works too now that the stray underrun no
+longer triggers the recovery.
