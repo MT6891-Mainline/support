@@ -96,7 +96,13 @@ fi
 # PulseAudio-compatible server - Debian 13's PipeWire with pipewire-pulse.  The
 # MT6359 codec has no UCM profile, so WirePlumber falls back to the plain stereo
 # output; that is the only playback path this board exposes anyway.
-for pkg in pipewire pipewire-pulse wireplumber pulseaudio-utils alsa-utils; do
+#
+# libspa-0.2-bluetooth is what registers the A2DP media endpoints with BlueZ.
+# Without it a paired headset never gets a transport and BlueZ drops the
+# connection with "a2dp-sink profile connect failed: Protocol not available"
+# (connectivity/BT-AUDIO.md in chopin-docs).
+for pkg in pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth \
+	   pulseaudio-utils alsa-utils; do
 	dpkg -s "$pkg" >/dev/null 2>&1 && continue
 	DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg" >/dev/null 2>&1 \
 		|| log "WARN: could not install $pkg"
