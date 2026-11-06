@@ -1175,6 +1175,9 @@ CONFIG_SND_SIMPLE_CARD=m
 CONFIG_SND_AUDIO_GRAPH_CARD=m
 CONFIG_SND_AUDIO_GRAPH_CARD2=m
 CONFIG_HID_MULTITOUCH=m
+# BlueZ creates the input device for Bluetooth mice/keyboards through uhid;
+# without it the HID profile has nowhere to hand the report descriptor.
+CONFIG_UHID=y
 CONFIG_I2C_HID_ACPI=m
 CONFIG_I2C_HID_OF=m
 CONFIG_I2C_HID_OF_ELAN=m
