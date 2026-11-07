@@ -9,13 +9,38 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 log() { printf '  %s\n' "$*"; }
 
 # --- firmware -------------------------------------------------------------
-install -d /lib/firmware/mediatek
-install -m 0644 "$HERE/firmware/mali_csffw.bin" /lib/firmware/mali_csffw.bin
-for f in "$HERE"/firmware/mediatek/*.bin; do
-	[ -e "$f" ] || continue
-	install -m 0644 "$f" "/lib/firmware/mediatek/$(basename "$f")"
-done
-log "firmware installed (mali + mediatek wifi)"
+# The firmware lives in the chopin-firmware repository; fetch it into
+# firmware/ on demand instead of carrying a second copy here.
+if [ ! -e "$HERE/firmware/mali_csffw.bin" ]; then
+	"$HERE/firmware/fetch.sh" || {
+		echo "  WARN: cannot fetch the firmware set; WiFi/BT/GPU firmware skipped" >&2
+		false
+	} && {
+		install -d /lib/firmware/mediatek
+		install -m 0644 "$HERE/firmware/mali_csffw.bin" /lib/firmware/mali_csffw.bin
+		for f in "$HERE"/firmware/*.bin; do
+			[ -e "$f" ] || continue
+			install -m 0644 "$f" "/lib/firmware/$(basename "$f")"
+		done
+		for f in "$HERE"/firmware/mediatek/*.bin; do
+			[ -e "$f" ] || continue
+			install -m 0644 "$f" "/lib/firmware/mediatek/$(basename "$f")"
+		done
+		log "firmware installed from chopin-firmware"
+	}
+else
+	install -d /lib/firmware/mediatek
+	install -m 0644 "$HERE/firmware/mali_csffw.bin" /lib/firmware/mali_csffw.bin
+	for f in "$HERE"/firmware/*.bin; do
+		[ -e "$f" ] || continue
+		install -m 0644 "$f" "/lib/firmware/$(basename "$f")"
+	done
+	for f in "$HERE"/firmware/mediatek/*.bin; do
+		[ -e "$f" ] || continue
+		install -m 0644 "$f" "/lib/firmware/mediatek/$(basename "$f")"
+	done
+	log "firmware installed from firmware/"
+fi
 
 # --- user scripts ---------------------------------------------------------
 for f in "$HERE"/rootfs/usr/local/bin/*; do

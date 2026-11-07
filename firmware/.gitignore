@@ -1,0 +1,3 @@
+# firmware files are fetched from the chopin-firmware repository
+*.bin
+mediatek/
