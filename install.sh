@@ -125,7 +125,7 @@ fi
 # libspa-0.2-bluetooth is what registers the A2DP media endpoints with BlueZ.
 # Without it a paired headset never gets a transport and BlueZ drops the
 # connection with "a2dp-sink profile connect failed: Protocol not available"
-# (connectivity/BT-AUDIO.md in chopin-docs).
+# (connectivity/BT-AUDIO.md in git/docs).
 for pkg in pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth \
 	   pulseaudio-utils alsa-utils; do
 	dpkg -s "$pkg" >/dev/null 2>&1 && continue
